@@ -1,0 +1,1094 @@
+<!DOCTYPE html>
+<html lang="vi" class="h-full">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>Đua Top Từ Vựng Tiếng Anh - Competitive Vocab Arena</title>
+
+  <!-- Mobile App PWA Meta -->
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="theme-color" content="#0f172a">
+
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- FontAwesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <!-- Canvas Confetti for Leaderboard Celebration -->
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+  <!-- Google Fonts: Lexend & Fredoka -->
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Lexend:wght@400;500;600;700;800&display=swap">
+
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Lexend', '-apple-system', 'BlinkMacSystemFont', 'sans-serif'],
+            display: ['Fredoka', 'sans-serif'],
+          },
+          colors: {
+            arenaDark: '#0f172a',
+            brandGreen: '#10b981',
+            brandAmber: '#f59e0b',
+            brandCyan: '#06b6d4',
+            brandRose: '#f43f5e'
+          }
+        }
+      }
+    }
+  </script>
+
+  <style>
+    html, body {
+      height: 100%;
+      overflow: hidden;
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+    }
+
+    /* 3D Touch Buttons */
+    .btn-3d {
+      transition: all 0.1s cubic-bezier(0.4, 0, 0.2, 1);
+      box-shadow: 0 4px 0 0 rgba(0, 0, 0, 0.3);
+    }
+    .btn-3d:active {
+      transform: translateY(3px);
+      box-shadow: 0 1px 0 0 rgba(0, 0, 0, 0.3);
+    }
+
+    /* Pulse Glow Animations */
+    @keyframes streakPulse {
+      0%, 100% { transform: scale(1); filter: drop-shadow(0 0 10px rgba(245, 158, 11, 0.5)); }
+      50% { transform: scale(1.08); filter: drop-shadow(0 0 20px rgba(245, 158, 11, 0.9)); }
+    }
+    .streak-anim {
+      animation: streakPulse 1.2s infinite ease-in-out;
+    }
+
+    /* 3D Flashcard Flip */
+    .perspective-1000 { perspective: 1000px; }
+    .transform-style-3d { transform-style: preserve-3d; }
+    .backface-hidden { backface-visibility: hidden; -webkit-backface-visibility: hidden; }
+    .rotate-y-180 { transform: rotateY(180deg); }
+    .card-inner { transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1); }
+
+    .no-scrollbar::-webkit-scrollbar { display: none; }
+    .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+  </style>
+
+  <!-- Firebase SDK Modules -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+    import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+    import { getFirestore, collection, addDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+    // Standard environment configuration with fallback support
+    const appId = typeof __app_id !== 'undefined' ? __app_id : 'vocab-arena-game';
+    const firebaseConfig = typeof __firebase_config !== 'undefined' 
+      ? JSON.parse(__firebase_config) 
+      : {
+          apiKey: "AIzaSyDemoKeyForVocabGamePublicPage",
+          authDomain: "vocab-arena.firebaseapp.com",
+          projectId: "vocab-arena",
+          storageBucket: "vocab-arena.appspot.com",
+          messagingSenderId: "123456789",
+          appId: "1:123456789:web:abcdef123456"
+        };
+
+    let db = null;
+    let auth = null;
+    let isCloudOnline = false;
+
+    try {
+      const app = initializeApp(firebaseConfig);
+      auth = getAuth(app);
+      db = getFirestore(app);
+
+      const initAuth = async () => {
+        try {
+          if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+            await signInWithCustomToken(auth, __initial_auth_token);
+          } else {
+            await signInAnonymously(auth);
+          }
+          isCloudOnline = true;
+          console.log("Firebase Auth & Cloud Leaderboard Ready");
+          subscribeLeaderboard();
+        } catch (e) {
+          console.warn("Cloud Firestore offline mode active (Using Local Storage Leaderboard):", e);
+        }
+      };
+      initAuth();
+    } catch (e) {
+      console.warn("Firebase Init fallback to LocalStorage mode:", e);
+    }
+
+    // Subscribe to Firestore public leaderboard: /artifacts/{appId}/public/data/leaderboard
+    function subscribeLeaderboard() {
+      if (!db || !auth || !auth.currentUser) return;
+      
+      const colRef = collection(db, 'artifacts', appId, 'public', 'data', 'leaderboard');
+      
+      onSnapshot(colRef, (snapshot) => {
+        const cloudScores = [];
+        snapshot.forEach((doc) => {
+          cloudScores.push({ id: doc.id, ...doc.data() });
+        });
+        
+        // Merge & update memory leaderboard
+        window.updateLeaderboardData(cloudScores);
+      }, (err) => {
+        console.warn("Firestore snapshot listener error:", err);
+      });
+    }
+
+    // Export function to save score to Cloud Firestore (Rule 1, Rule 2 compliant)
+    window.saveScoreToCloud = async function(scoreRecord) {
+      // Always save locally first
+      let localScores = JSON.parse(localStorage.getItem('vocab_arena_leaderboard') || '[]');
+      localScores.push(scoreRecord);
+      // Sort descending by score
+      localScores.sort((a,b) => b.score - a.score);
+      localScores = localScores.slice(0, 50); // Keep top 50
+      localStorage.setItem('vocab_arena_leaderboard', JSON.stringify(localScores));
+      window.updateLeaderboardData(localScores);
+
+      // Save to Cloud if available
+      if (db && auth && auth.currentUser) {
+        try {
+          const colRef = collection(db, 'artifacts', appId, 'public', 'data', 'leaderboard');
+          await addDoc(colRef, {
+            ...scoreRecord,
+            uid: auth.currentUser.uid,
+            createdAt: new Date().toISOString()
+          });
+        } catch (err) {
+          console.warn("Failed to sync score to cloud:", err);
+        }
+      }
+    };
+  </script>
+</head>
+
+<body class="bg-slate-900 text-slate-100 h-full flex flex-col font-sans antialiased selection:bg-emerald-500 selection:text-white">
+
+  <!-- APP HEADER BAR -->
+  <header class="bg-slate-800/90 backdrop-blur border-b border-slate-700/80 px-4 py-2.5 flex items-center justify-between shrink-0 z-30">
+    <div class="flex items-center space-x-2.5">
+      <div class="w-10 h-10 rounded-2xl bg-gradient-to-tr from-amber-500 via-emerald-500 to-cyan-400 flex items-center justify-center text-white text-xl font-black shadow-lg shadow-emerald-500/20 active:scale-95 transition">
+        <i class="fa-solid fa-trophy"></i>
+      </div>
+      <div>
+        <h1 class="font-display text-base font-bold text-white tracking-wide leading-tight">ĐUA TOP TỪ VỰNG</h1>
+        <p class="text-[11px] text-amber-400 font-semibold leading-none">English Vocab Battle Arena</p>
+      </div>
+    </div>
+
+    <!-- Right Profile & Sound -->
+    <div class="flex items-center space-x-2">
+      <!-- Player Profile Tag -->
+      <button onclick="openProfileModal()" id="header-user-tag" class="bg-slate-900 border border-slate-700 hover:border-emerald-500 px-3 py-1 rounded-xl flex items-center space-x-2 text-xs transition">
+        <i class="fa-solid fa-user-ninja text-emerald-400"></i>
+        <span id="header-username" class="font-bold text-slate-200 max-w-[90px] truncate">Học sinh</span>
+      </button>
+
+      <!-- Sound Toggle -->
+      <button id="btn-sound" onclick="toggleSound()" class="w-8 h-8 rounded-xl bg-slate-900 border border-slate-700 flex items-center justify-center text-emerald-400 active:scale-90 transition">
+        <i id="icon-sound" class="fa-solid fa-volume-high text-xs"></i>
+      </button>
+    </div>
+  </header>
+
+  <!-- CATEGORY FILTER CHIPS BAR -->
+  <div class="bg-slate-800/60 border-b border-slate-700/60 px-3 py-2 shrink-0 overflow-x-auto no-scrollbar flex items-center space-x-2 z-20">
+    <button onclick="setCategory('all')" id="cat-all" class="cat-chip active px-3 py-1 rounded-full text-xs font-bold whitespace-nowrap bg-emerald-600 text-white shadow-sm border border-emerald-400/30 transition">
+      🔥 Tất cả (100)
+    </button>
+    <button onclick="setCategory('animals')" id="cat-animals" class="cat-chip px-3 py-1 rounded-full text-xs font-bold whitespace-nowrap bg-slate-800 text-slate-300 border border-slate-700 transition">
+      🐶 Động vật
+    </button>
+    <button onclick="setCategory('places')" id="cat-places" class="cat-chip px-3 py-1 rounded-full text-xs font-bold whitespace-nowrap bg-slate-800 text-slate-300 border border-slate-700 transition">
+      🏫 Địa điểm &amp; Tòa nhà
+    </button>
+    <button onclick="setCategory('directions')" id="cat-directions" class="cat-chip px-3 py-1 rounded-full text-xs font-bold whitespace-nowrap bg-slate-800 text-slate-300 border border-slate-700 transition">
+      🗺️ Hướng &amp; Giới từ
+    </button>
+  </div>
+
+
+  <!-- MAIN CONTAINER (SCROLLABLE VIEWS) -->
+  <main class="flex-grow overflow-y-auto relative p-4 flex flex-col justify-center">
+
+    <!-- ==================== VIEW 1: COMPETITIVE QUIZ ARENA (ĐUA TOP ONLINE) ==================== -->
+    <section id="section-arena" class="mode-section w-full max-w-md mx-auto flex flex-col space-y-3 my-auto">
+      
+      <!-- Top HUD Info Bar -->
+      <div class="w-full bg-slate-800/90 border border-slate-700/80 rounded-2xl p-3 flex items-center justify-between shadow-xl">
+        <!-- Question Counter & Timer -->
+        <div class="flex items-center space-x-3">
+          <div class="text-center">
+            <span class="text-[10px] text-slate-400 block font-semibold leading-none">CÂU HỎI</span>
+            <span class="text-sm font-black text-emerald-400 font-display"><span id="arena-curr-q">1</span>/<span id="arena-total-q">10</span></span>
+          </div>
+          <div class="h-6 w-px bg-slate-700"></div>
+          <div class="text-center">
+            <span class="text-[10px] text-slate-400 block font-semibold leading-none">THỜI GIAN</span>
+            <span id="arena-timer" class="text-sm font-black text-amber-400 font-display">12s</span>
+          </div>
+        </div>
+
+        <!-- Combo Streak Badge -->
+        <div id="streak-container" class="bg-amber-950/80 border border-amber-500/80 px-3 py-1 rounded-xl flex items-center space-x-1.5 shadow-md">
+          <i class="fa-solid fa-fire text-amber-400 text-sm animate-bounce"></i>
+          <div>
+            <span class="text-[9px] text-amber-300 font-extrabold uppercase block leading-none">STREAK</span>
+            <span id="arena-streak-count" class="text-xs font-black text-amber-400">0x COMBO</span>
+          </div>
+        </div>
+
+        <!-- Current Total Score -->
+        <div class="text-right">
+          <span class="text-[10px] text-slate-400 block font-semibold leading-none">ĐIỂM SỐ</span>
+          <span id="arena-score" class="text-base font-black text-cyan-400 font-display">0</span>
+        </div>
+      </div>
+
+      <!-- Time Progress Bar -->
+      <div class="w-full bg-slate-800 h-2 rounded-full overflow-hidden border border-slate-700">
+        <div id="timer-bar" class="bg-gradient-to-r from-emerald-400 via-amber-400 to-rose-500 h-full w-full transition-all duration-100 ease-linear"></div>
+      </div>
+
+      <!-- Question Prompt Box -->
+      <div class="w-full bg-slate-800 border-2 border-slate-700 rounded-3xl p-6 text-center space-y-2 shadow-2xl relative">
+        <span class="text-[10px] font-black uppercase tracking-widest text-emerald-400 bg-emerald-950/90 px-3 py-1 rounded-full border border-emerald-800/80">
+          Hãy chọn từ Tiếng Anh đúng
+        </span>
+        <h2 id="arena-vi-prompt" class="text-2xl sm:text-3xl font-black text-white pt-1">
+          bệnh viện
+        </h2>
+      </div>
+
+      <!-- 4 Option Touch Buttons Grid -->
+      <div id="arena-options-grid" class="grid grid-cols-1 gap-2.5 pt-1">
+        <!-- Rendered dynamically -->
+      </div>
+
+      <!-- Feedback Banner -->
+      <div id="arena-feedback" class="min-h-[36px] flex items-center justify-center text-xs font-extrabold text-center"></div>
+
+      <!-- Next / Finish Round Button -->
+      <button id="btn-arena-next" onclick="nextArenaQuestion()" class="hidden w-full h-12 bg-emerald-600 active:bg-emerald-500 text-white font-extrabold rounded-2xl shadow-lg border border-emerald-400/40 text-sm flex items-center justify-center space-x-2 active:scale-95 transition">
+        <span>Câu Tiếp Theo</span> <i class="fa-solid fa-arrow-right"></i>
+      </button>
+
+    </section>
+
+
+    <!-- ==================== VIEW 2: LEADERBOARD (BẢNG XẾP HẠNG ONLINE) ==================== -->
+    <section id="section-leaderboard" class="mode-section hidden w-full max-w-md mx-auto flex flex-col space-y-3 h-full">
+      
+      <!-- Top Banner -->
+      <div class="bg-gradient-to-r from-amber-600 via-amber-500 to-yellow-500 p-4 rounded-3xl text-center text-slate-900 shadow-xl border border-amber-300/40 space-y-1">
+        <h2 class="font-display text-xl font-black tracking-wide"><i class="fa-solid fa-crown text-slate-900 mr-1.5"></i> BẢNG XẾP HẠNG ONLINE</h2>
+        <p class="text-xs font-bold text-slate-950">Thi đua cùng các bạn học sinh toàn trường!</p>
+      </div>
+
+      <!-- Filter/Search Bar -->
+      <div class="flex items-center space-x-2">
+        <div class="relative flex-grow">
+          <i class="fa-solid fa-magnifying-glass absolute left-3 top-3 text-slate-400 text-xs"></i>
+          <input type="text" id="lb-search" oninput="renderLeaderboardUI()" placeholder="Tìm tên hoặc lớp..." class="w-full bg-slate-800 border border-slate-700 text-xs text-white pl-9 pr-3 py-2.5 rounded-xl outline-none focus:border-amber-400">
+        </div>
+        <button onclick="triggerConfetti()" class="h-9 px-3 bg-amber-500 text-slate-950 font-bold rounded-xl text-xs flex items-center space-x-1 active:scale-95 transition">
+          <i class="fa-solid fa-wand-magic-sparkles"></i> <span>Mừng</span>
+        </button>
+      </div>
+
+      <!-- Scrollable Ranks Container -->
+      <div class="flex-grow overflow-y-auto no-scrollbar space-y-2 pr-0.5">
+        <div id="leaderboard-list" class="space-y-2">
+          <!-- Dynamically populated leaderboard rows -->
+        </div>
+      </div>
+
+    </section>
+
+
+    <!-- ==================== VIEW 3: FLASHCARDS (THẺ TỪ VỰNG) ==================== -->
+    <section id="section-flashcards" class="mode-section hidden w-full max-w-md mx-auto flex flex-col items-center space-y-3 my-auto">
+      
+      <!-- Progress Bar -->
+      <div class="w-full flex items-center justify-between text-xs font-bold text-slate-400">
+        <span>Thẻ <span id="fc-current-idx" class="text-emerald-400">1</span> / <span id="fc-total-count">100</span></span>
+        <div class="flex-grow mx-3 bg-slate-800 h-2 rounded-full overflow-hidden border border-slate-700">
+          <div id="fc-progress-bar" class="bg-gradient-to-r from-emerald-500 to-amber-400 h-full w-0 transition-all duration-300"></div>
+        </div>
+        <span id="fc-cat-badge" class="bg-emerald-950 text-emerald-400 px-2 py-0.5 rounded text-[10px] uppercase font-bold border border-emerald-800">Tất cả</span>
+      </div>
+
+      <!-- 3D Flashcard Wrapper -->
+      <div onclick="flipCard()" class="w-full h-72 sm:h-80 perspective-1000 cursor-pointer select-none">
+        <div id="flashcard-inner" class="card-inner relative w-full h-full transform-style-3d bg-slate-800 border-2 border-slate-700 rounded-3xl shadow-2xl active:scale-98">
+          
+          <!-- FRONT SIDE (Vietnamese) -->
+          <div class="absolute inset-0 backface-hidden p-6 flex flex-col justify-between items-center text-center bg-gradient-to-b from-slate-800 to-slate-900 rounded-3xl">
+            <span class="text-[11px] font-extrabold uppercase text-amber-400 bg-amber-950/80 px-3 py-1 rounded-full border border-amber-800">
+              <i class="fa-solid fa-flag-vietnam"></i> Tiếng Việt
+            </span>
+
+            <div class="my-auto space-y-2">
+              <h2 id="fc-vietnamese" class="text-3xl font-black text-white tracking-wide">ở trong</h2>
+              <p class="text-xs text-slate-400 font-medium">Chạm vào thẻ để lật xem tiếng Anh</p>
+            </div>
+
+            <span class="text-[11px] text-emerald-400 font-bold bg-emerald-950/60 px-3 py-1 rounded-full border border-emerald-800/40">
+              <i class="fa-solid fa-hand-pointer mr-1"></i> Chạm lật thẻ
+            </span>
+          </div>
+
+          <!-- BACK SIDE (English) -->
+          <div class="absolute inset-0 backface-hidden rotate-y-180 p-6 flex flex-col justify-between items-center text-center bg-gradient-to-b from-slate-800 via-emerald-950/30 to-slate-900 border-2 border-emerald-500/80 rounded-3xl">
+            <div class="w-full flex justify-between items-center">
+              <span class="text-[11px] font-extrabold uppercase text-emerald-400 bg-emerald-950 px-3 py-1 rounded-full border border-emerald-800">
+                <i class="fa-solid fa-earth-americas"></i> Tiếng Anh
+              </span>
+              <button onclick="event.stopPropagation(); speakCurrentFc();" class="w-9 h-9 bg-emerald-500 text-white rounded-full flex items-center justify-center shadow-lg active:scale-90 transition">
+                <i class="fa-solid fa-volume-high text-xs"></i>
+              </button>
+            </div>
+
+            <div class="my-auto space-y-2">
+              <h2 id="fc-english" class="text-3xl font-black text-emerald-300 font-display">in</h2>
+              <div class="bg-slate-900/90 p-2.5 rounded-xl border border-slate-700/80 text-left space-y-0.5 max-w-xs">
+                <p id="fc-example-en" class="text-xs font-semibold text-slate-200">The cat is in the box.</p>
+                <p id="fc-example-vi" class="text-[11px] text-slate-400 italic">Con mèo ở trong cái hộp.</p>
+              </div>
+            </div>
+
+            <div class="w-full flex items-center space-x-2" onclick="event.stopPropagation();">
+              <button onclick="prevFc()" class="flex-1 py-2.5 bg-slate-800 text-slate-300 text-xs font-bold rounded-xl border border-slate-700">Trước</button>
+              <button onclick="nextFc()" class="flex-1 py-2.5 bg-emerald-600 text-white text-xs font-bold rounded-xl border border-emerald-500">Tiếp</button>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+    </section>
+
+
+    <!-- ==================== VIEW 4: DICTIONARY LIST (TRA CỨU) ==================== -->
+    <section id="section-list" class="mode-section hidden w-full max-w-md mx-auto flex flex-col space-y-3 h-full">
+      <div class="relative w-full shrink-0">
+        <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-3.5 text-slate-400 text-xs"></i>
+        <input type="text" id="list-search" oninput="renderVocabListUI()" placeholder="Tìm từ tiếng Việt hoặc tiếng Anh..." class="w-full bg-slate-800 border border-slate-700 text-xs text-white pl-9 pr-3 py-3 rounded-2xl outline-none focus:border-emerald-500">
+      </div>
+
+      <div class="flex-grow overflow-y-auto no-scrollbar space-y-2 pr-0.5">
+        <div id="dict-list-container" class="space-y-2">
+          <!-- Rendered dynamically -->
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+
+  <!-- BOTTOM NAVIGATION BAR -->
+  <nav class="bg-slate-800/95 backdrop-blur border-t border-slate-700/80 px-2 py-1.5 shrink-0 z-30">
+    <div class="max-w-md mx-auto grid grid-cols-4 gap-1">
+      
+      <button onclick="switchMode('arena')" id="nav-arena" class="nav-btn active flex flex-col items-center justify-center py-2 rounded-2xl text-amber-400 font-bold transition">
+        <i class="fa-solid fa-gamepad text-base mb-0.5"></i>
+        <span class="text-[10px] leading-none">Đua Top</span>
+      </button>
+
+      <button onclick="switchMode('leaderboard')" id="nav-leaderboard" class="nav-btn flex flex-col items-center justify-center py-2 rounded-2xl text-slate-400 font-bold hover:text-slate-200 transition">
+        <i class="fa-solid fa-ranking-star text-base mb-0.5"></i>
+        <span class="text-[10px] leading-none">Xếp Hạng</span>
+      </button>
+
+      <button onclick="switchMode('flashcards')" id="nav-flashcards" class="nav-btn flex flex-col items-center justify-center py-2 rounded-2xl text-slate-400 font-bold hover:text-slate-200 transition">
+        <i class="fa-solid fa-clone text-base mb-0.5"></i>
+        <span class="text-[10px] leading-none">Thẻ Từ</span>
+      </button>
+
+      <button onclick="switchMode('list')" id="nav-list" class="nav-btn flex flex-col items-center justify-center py-2 rounded-2xl text-slate-400 font-bold hover:text-slate-200 transition">
+        <i class="fa-solid fa-book-open text-base mb-0.5"></i>
+        <span class="text-[10px] leading-none">Tra Cứu</span>
+      </button>
+
+    </div>
+  </nav>
+
+
+  <!-- STUDENT REGISTRATION / PROFILE MODAL -->
+  <div id="modal-profile" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    <div class="bg-slate-800 border-2 border-slate-700 rounded-3xl p-6 w-full max-w-sm space-y-4 shadow-2xl text-center">
+      <div class="w-16 h-16 bg-gradient-to-tr from-amber-500 to-emerald-400 rounded-3xl flex items-center justify-center text-white text-3xl mx-auto shadow-lg">
+        <i class="fa-solid fa-user-ninja"></i>
+      </div>
+      <div>
+        <h3 class="font-display text-lg font-black text-white">THÔNG TIN HỌC SINH</h3>
+        <p class="text-xs text-slate-400 mt-1">Nhập tên để lưu điểm lên Bảng Xếp Hạng Online!</p>
+      </div>
+
+      <form onsubmit="event.preventDefault(); saveStudentProfile();" class="space-y-3 text-left">
+        <div>
+          <label class="block text-xs font-bold text-slate-300 mb-1">Họ và Tên học sinh (*):</label>
+          <input type="text" id="input-student-name" required placeholder="Ví dụ: Nguyễn Văn An" class="w-full bg-slate-900 border border-slate-700 focus:border-emerald-500 text-sm font-bold text-white px-3.5 py-2.5 rounded-xl outline-none">
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold text-slate-300 mb-1">Lớp / Nickname (*):</label>
+          <input type="text" id="input-student-class" required placeholder="Ví dụ: Lớp 6A1" class="w-full bg-slate-900 border border-slate-700 focus:border-emerald-500 text-sm font-bold text-white px-3.5 py-2.5 rounded-xl outline-none">
+        </div>
+
+        <button type="submit" class="w-full py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold rounded-2xl shadow-lg border border-emerald-400/40 text-sm transition">
+          Sẵn Sàng Đua Top 🚀
+        </button>
+      </form>
+    </div>
+  </div>
+
+
+  <!-- APPLICATION SCRIPT LOGIC -->
+  <script>
+    /* ==========================================================================
+       VOCABULARY DATASET (ANIMALS, NATURE, PLACES, DIRECTIONS, PREPOSITIONS)
+       ========================================================================== */
+    const VOCAB_DATA = [
+      // Animals
+      { id: 1, vi: "động vật", en: "animal", category: "animals", exEn: "A lion is a wild animal.", exVi: "Sư tử là động vật hoang dã." },
+      { id: 2, vi: "thú cưng", en: "pet", category: "animals", exEn: "I have a cute pet cat.", exVi: "Tôi có một chú mèo thú cưng." },
+      { id: 3, vi: "con gấu", en: "bear", category: "animals", exEn: "The bear catches fish in the river.", exVi: "Con gấu bắt cá ở dưới sông." },
+      { id: 4, vi: "gấu bắc cực", en: "polar bear", category: "animals", exEn: "Polar bears live in the cold Arctic.", exVi: "Gấu bắc cực sống ở Bắc Cực." },
+      { id: 5, vi: "con ong", en: "bee", category: "animals", exEn: "Bees make sweet honey.", exVi: "Con ong làm ra mật ngọt." },
+      { id: 6, vi: "con chim", en: "bird", category: "animals", exEn: "The blue bird sings softly.", exVi: "Con chim màu xanh hót líu lo." },
+      { id: 7, vi: "con mèo", en: "cat", category: "animals", exEn: "The cat is sleeping on the mat.", exVi: "Con mèo đang ngủ trên thảm." },
+      { id: 8, vi: "con gà", en: "chicken", category: "animals", exEn: "The chicken lays fresh eggs.", exVi: "Con gà đẻ trứng tươi." },
+      { id: 9, vi: "con bò", en: "cow", category: "animals", exEn: "Cows give us fresh milk.", exVi: "Con bò cho chúng ta sữa tươi." },
+      { id: 10, vi: "cá sấu", en: "crocodile", category: "animals", exEn: "The crocodile swims silently.", exVi: "Cá sấu bơi một cách lặng lẽ." },
+      { id: 11, vi: "con chó", en: "dog", category: "animals", exEn: "The dog guards the house.", exVi: "Con chó trông nom ngôi nhà." },
+      { id: 12, vi: "con lừa", en: "donkey", category: "animals", exEn: "The donkey carries heavy bags.", exVi: "Con lừa chở bao hàng nặng." },
+      { id: 13, vi: "con vịt", en: "duck", category: "animals", exEn: "The duck quacks in the pond.", exVi: "Con vịt kêu quác quác trong ao." },
+      { id: 14, vi: "con voi", en: "elephant", category: "animals", exEn: "An elephant has a long trunk.", exVi: "Con voi có một cái vòi dài." },
+      { id: 15, vi: "con cá", en: "fish", category: "animals", exEn: "Goldfish swim in the tank.", exVi: "Cá vàng bơi trong bể cá." },
+      { id: 16, vi: "con ếch", en: "frog", category: "animals", exEn: "The green frog leaps high.", exVi: "Con ếch xanh nhảy cao." },
+      { id: 17, vi: "hươu cao cổ", en: "giraffe", category: "animals", exEn: "The giraffe eats leaves from tall trees.", exVi: "Hươu cao cổ ăn lá cây cao." },
+      { id: 18, vi: "con dê", en: "goat", category: "animals", exEn: "The goat eats green grass.", exVi: "Con dê ăn cỏ xanh." },
+      { id: 19, vi: "con hà mã", en: "hippo", category: "animals", exEn: "The hippo stays in the water.", exVi: "Con hà mã ở dưới nước." },
+      { id: 20, vi: "con ngựa", en: "horse", category: "animals", exEn: "He rides a fast brown horse.", exVi: "Anh ấy cưỡi con ngựa nâu nhanh." },
+      { id: 21, vi: "con khỉ", en: "monkey", category: "animals", exEn: "Monkeys swing on trees.", exVi: "Con khỉ đu cây." },
+      { id: 22, vi: "con rắn", en: "snake", category: "animals", exEn: "The snake slithers in the grass.", exVi: "Con rắn bò trườn trong cỏ." },
+      { id: 23, vi: "con hổ / con cọp", en: "tiger", category: "animals", exEn: "The tiger has black stripes.", exVi: "Con hổ có các sọc đen." },
+      { id: 24, vi: "con sư tử", en: "lion", category: "animals", exEn: "The lion roars loudly.", exVi: "Con sư tử gầm vang." },
+      { id: 25, vi: "gấu trúc", en: "panda", category: "animals", exEn: "Pandas eat fresh bamboo.", exVi: "Gấu trúc ăn trúc tươi." },
+      { id: 26, vi: "chim cánh cụt", en: "penguin", category: "animals", exEn: "Penguins walk on ice.", exVi: "Chim cánh cụt đi trên băng." },
+      { id: 27, vi: "cá mập", en: "shark", category: "animals", exEn: "Sharks have sharp teeth.", exVi: "Cá mập có răng sắc nhọn." },
+      { id: 28, vi: "cá voi", en: "whale", category: "animals", exEn: "The blue whale is huge.", exVi: "Cá voi xanh rất khổng lồ." },
+      { id: 29, vi: "bạch tuộc", en: "octopus", category: "animals", exEn: "An octopus has eight arms.", exVi: "Bạch tuộc có 8 xúc tu." },
+      { id: 30, vi: "rùa cạn", en: "tortoise", category: "animals", exEn: "The tortoise walks slowly.", exVi: "Con rùa cạn đi chậm chạp." },
+
+      // Places & Buildings
+      { id: 31, vi: "công viên", en: "park", category: "places", exEn: "Children play in the park.", exVi: "Trẻ em chơi trong công viên." },
+      { id: 32, vi: "sở thú", en: "zoo", category: "places", exEn: "We saw lions at the zoo.", exVi: "Chúng tôi thấy sư tử ở sở thú." },
+      { id: 33, vi: "rạp chiếu phim", en: "cinema", category: "places", exEn: "Let's watch a movie at the cinema.", exVi: "Hãy xem phim ở rạp chiếu phim." },
+      { id: 34, vi: "sân chơi", en: "playground", category: "places", exEn: "They run in the playground.", exVi: "Họ chạy trong sân chơi." },
+      { id: 35, vi: "cửa hàng", en: "shop / store", category: "places", exEn: "She bought apples at the shop.", exVi: "Cô ấy mua táo ở cửa hàng." },
+      { id: 36, vi: "nhà sách", en: "bookshop", category: "places", exEn: "I bought a book at the bookshop.", exVi: "Tôi mua sách ở nhà sách." },
+      { id: 37, vi: "bãi biển", en: "beach", category: "places", exEn: "We walk on the sandy beach.", exVi: "Chúng tôi đi trên bãi biển." },
+      { id: 38, vi: "bệnh viện", en: "hospital", category: "places", exEn: "The doctor works at the hospital.", exVi: "Bác sĩ làm việc tại bệnh viện." },
+      { id: 39, vi: "trung tâm mua sắm", en: "shopping centre", category: "places", exEn: "We buy clothes at the shopping centre.", exVi: "Chúng tôi mua sắm ở trung tâm." },
+      { id: 40, vi: "ngân hàng", en: "bank", category: "places", exEn: "He goes to the bank.", exVi: "Anh ấy đến ngân hàng." },
+      { id: 41, vi: "trạm xe buýt", en: "bus station", category: "places", exEn: "Wait for the bus at the bus station.", exVi: "Đợi xe ở trạm xe buýt." },
+      { id: 42, vi: "thư viện", en: "library", category: "places", exEn: "I read quiet books in the library.", exVi: "Tôi đọc sách trong thư viện." },
+      { id: 43, vi: "siêu thị", en: "supermarket", category: "places", exEn: "Mum buys food at the supermarket.", exVi: "Mẹ mua thức ăn ở siêu thị." },
+      { id: 44, vi: "hồ bơi", en: "swimming pool", category: "places", exEn: "They swim in the swimming pool.", exVi: "Họ bơi trong hồ bơi." },
+      { id: 45, vi: "sân bay", en: "airport", category: "places", exEn: "The airplane lands at the airport.", exVi: "Máy bay hạ cánh ở sân bay." },
+      { id: 46, vi: "viện bảo tàng", en: "museum", category: "places", exEn: "See old statues in the museum.", exVi: "Xem tượng cổ trong bảo tàng." },
+      { id: 47, vi: "sân vận động", en: "stadium", category: "places", exEn: "The match is at the stadium.", exVi: "Trận đấu diễn ra ở sân vận động." },
+      { id: 48, vi: "bưu điện", en: "post office", category: "places", exEn: "Send letters at the post office.", exVi: "Gửi thư tại bưu điện." },
+      { id: 49, vi: "nhà hàng", en: "restaurant", category: "places", exEn: "We ate at a nice restaurant.", exVi: "Chúng tôi ăn ở nhà hàng." },
+      { id: 50, vi: "khách sạn", en: "hotel", category: "places", exEn: "Tourists stay in a hotel.", exVi: "Du khách ở trong khách sạn." },
+
+      // Prepositions & Directions
+      { id: 51, vi: "ở trong", en: "in", category: "directions", exEn: "The cat is in the box.", exVi: "Con mèo ở trong cái hộp." },
+      { id: 52, vi: "ở trên", en: "on", category: "directions", exEn: "The book is on the table.", exVi: "Cuốn sách ở trên bàn." },
+      { id: 53, vi: "ở dưới", en: "under", category: "directions", exEn: "The shoes are under the bed.", exVi: "Đôi giày ở dưới giường." },
+      { id: 54, vi: "bên cạnh", en: "next to", category: "directions", exEn: "The bank is next to the cafe.", exVi: "Ngân hàng bên cạnh tiệm cà phê." },
+      { id: 55, vi: "đằng sau", en: "behind", category: "directions", exEn: "The park is behind the school.", exVi: "Công viên ở đằng sau trường." },
+      { id: 56, vi: "đằng trước", en: "in front of", category: "directions", exEn: "There is a tree in front of my house.", exVi: "Có một cái cây đằng trước nhà." },
+      { id: 57, vi: "ở giữa", en: "between", category: "directions", exEn: "The shop is between the bank and cafe.", exVi: "Cửa hàng ở giữa ngân hàng và tiệm cà phê." },
+      { id: 58, vi: "bên trái", en: "left", category: "directions", exEn: "Turn left at the corner.", exVi: "Rẽ trái ở góc đường." },
+      { id: 59, vi: "bên phải", en: "right", category: "directions", exEn: "The hotel is on your right.", exVi: "Khách sạn nằm bên phải bạn." },
+      { id: 60, vi: "đối diện", en: "opposite", category: "directions", exEn: "The cinema is opposite the hospital.", exVi: "Rạp phim đối diện bệnh viện." }
+    ];
+
+    /* ==========================================================================
+       APP STATE
+       ========================================================================== */
+    let currentCategory = 'all';
+    let currentMode = 'arena';
+    let soundEnabled = true;
+
+    // Active vocab filter
+    let activeVocab = [...VOCAB_DATA];
+
+    // Player Profile
+    let playerProfile = {
+      name: localStorage.getItem('vocab_player_name') || '',
+      className: localStorage.getItem('vocab_player_class') || ''
+    };
+
+    // Competitive Arena State
+    let arenaQuestionIndex = 0;
+    let arenaTotalQuestions = 10;
+    let arenaScore = 0;
+    let arenaStreak = 0;
+    let arenaMaxStreak = 0;
+    let arenaTimerInterval = null;
+    let arenaTimeLeft = 12; // 12 seconds per question
+    let currentArenaQuestion = null;
+    let isArenaAnswered = false;
+
+    // Flashcard State
+    let fcIndex = 0;
+    let isFcFlipped = false;
+
+    // Leaderboard Memory Store
+    let leaderboardData = [];
+
+    // Synthesizer audio context
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+    /* ==========================================================================
+       INITIALIZATION
+       ========================================================================== */
+    window.onload = function() {
+      checkProfileOnLaunch();
+      loadLocalLeaderboard();
+      updateFilteredVocab();
+      
+      // Default to Arena mode
+      initArenaRound();
+    };
+
+    function checkProfileOnLaunch() {
+      if (playerProfile.name) {
+        document.getElementById('header-username').innerText = `${playerProfile.name} (${playerProfile.className})`;
+      } else {
+        openProfileModal();
+      }
+    }
+
+    function openProfileModal() {
+      document.getElementById('input-student-name').value = playerProfile.name;
+      document.getElementById('input-student-class').value = playerProfile.className;
+      document.getElementById('modal-profile').classList.remove('hidden');
+    }
+
+    function saveStudentProfile() {
+      const name = document.getElementById('input-student-name').value.trim();
+      const cls = document.getElementById('input-student-class').value.trim();
+      if (!name || !cls) return;
+
+      playerProfile.name = name;
+      playerProfile.className = cls;
+
+      localStorage.setItem('vocab_player_name', name);
+      localStorage.setItem('vocab_player_class', cls);
+
+      document.getElementById('header-username').innerText = `${name} (${cls})`;
+      document.getElementById('modal-profile').classList.add('hidden');
+    }
+
+    /* ==========================================================================
+       AUDIO SYNTHESIZER SOUND EFFECTS
+       ========================================================================== */
+    function toggleSound() {
+      soundEnabled = !soundEnabled;
+      const icon = document.getElementById('icon-sound');
+      icon.className = soundEnabled ? 'fa-solid fa-volume-high text-xs text-emerald-400' : 'fa-solid fa-volume-xmark text-xs text-slate-500';
+    }
+
+    function playAudio(type) {
+      if (!soundEnabled) return;
+      try {
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+        const now = audioCtx.currentTime;
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+
+        if (type === 'correct') {
+          osc.type = 'triangle';
+          osc.frequency.setValueAtTime(523.25, now);
+          osc.frequency.setValueAtTime(659.25, now + 0.08);
+          osc.frequency.setValueAtTime(783.99, now + 0.16);
+          gain.gain.setValueAtTime(0.2, now);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
+          osc.start(now);
+          osc.stop(now + 0.35);
+        } else if (type === 'wrong') {
+          osc.type = 'sawtooth';
+          osc.frequency.setValueAtTime(220, now);
+          osc.frequency.setValueAtTime(174.61, now + 0.12);
+          gain.gain.setValueAtTime(0.2, now);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
+          osc.start(now);
+          osc.stop(now + 0.3);
+        } else if (type === 'streak') {
+          osc.type = 'square';
+          osc.frequency.setValueAtTime(440, now);
+          osc.frequency.setValueAtTime(880, now + 0.1);
+          gain.gain.setValueAtTime(0.15, now);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
+          osc.start(now);
+          osc.stop(now + 0.3);
+        } else if (type === 'fanfare') {
+          triggerConfetti();
+        }
+      } catch (e) {
+        console.warn(e);
+      }
+    }
+
+    function triggerConfetti() {
+      if (typeof confetti === 'function') {
+        confetti({
+          particleCount: 80,
+          spread: 70,
+          origin: { y: 0.6 }
+        });
+      }
+    }
+
+    function speakEnglishText(text) {
+      if ('speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+        const clean = text.replace(/\s*\/\s*/g, ' or ');
+        const utterance = new SpeechSynthesisUtterance(clean);
+        utterance.lang = 'en-US';
+        utterance.rate = 0.88;
+        window.speechSynthesis.speak(utterance);
+      }
+    }
+
+    /* ==========================================================================
+       NAVIGATION & CATEGORIES
+       ========================================================================== */
+    function setCategory(cat) {
+      currentCategory = cat;
+      document.querySelectorAll('.cat-chip').forEach(btn => {
+        btn.className = 'cat-chip px-3 py-1 rounded-full text-xs font-bold whitespace-nowrap bg-slate-800 text-slate-300 border border-slate-700 transition';
+      });
+      const activeBtn = document.getElementById('cat-' + cat);
+      if (activeBtn) {
+        activeBtn.className = 'cat-chip active px-3 py-1 rounded-full text-xs font-bold whitespace-nowrap bg-emerald-600 text-white shadow-sm border border-emerald-400/30 transition';
+      }
+
+      updateFilteredVocab();
+      if (currentMode === 'arena') initArenaRound();
+      if (currentMode === 'flashcards') renderFc();
+      if (currentMode === 'list') renderVocabListUI();
+    }
+
+    function updateFilteredVocab() {
+      if (currentCategory === 'all') {
+        activeVocab = [...VOCAB_DATA];
+      } else {
+        activeVocab = VOCAB_DATA.filter(item => item.category === currentCategory);
+      }
+      if (activeVocab.length === 0) activeVocab = [...VOCAB_DATA];
+    }
+
+    function switchMode(mode) {
+      currentMode = mode;
+      document.querySelectorAll('.nav-btn').forEach(btn => {
+        btn.className = 'nav-btn flex flex-col items-center justify-center py-2 rounded-2xl text-slate-400 font-bold hover:text-slate-200 transition';
+      });
+      const activeNav = document.getElementById('nav-' + mode);
+      if (activeNav) {
+        activeNav.className = 'nav-btn active flex flex-col items-center justify-center py-2 rounded-2xl text-amber-400 font-bold transition';
+      }
+
+      document.querySelectorAll('.mode-section').forEach(sec => sec.classList.add('hidden'));
+      document.getElementById('section-' + mode).classList.remove('hidden');
+
+      if (mode === 'arena') initArenaRound();
+      if (mode === 'leaderboard') renderLeaderboardUI();
+      if (mode === 'flashcards') renderFc();
+      if (mode === 'list') renderVocabListUI();
+    }
+
+    /* ==========================================================================
+       VIEW 1: COMPETITIVE QUIZ ARENA (ĐUA TOP ONLINE)
+       ========================================================================== */
+    function initArenaRound() {
+      arenaQuestionIndex = 0;
+      arenaScore = 0;
+      arenaStreak = 0;
+      arenaMaxStreak = 0;
+      updateArenaHUD();
+      generateArenaQuestion();
+    }
+
+    function updateArenaHUD() {
+      document.getElementById('arena-curr-q').innerText = arenaQuestionIndex + 1;
+      document.getElementById('arena-total-q').innerText = arenaTotalQuestions;
+      document.getElementById('arena-score').innerText = arenaScore;
+      document.getElementById('arena-streak-count').innerText = `${arenaStreak}x COMBO`;
+
+      const streakContainer = document.getElementById('streak-container');
+      if (arenaStreak >= 3) {
+        streakContainer.classList.add('streak-anim');
+      } else {
+        streakContainer.classList.remove('streak-anim');
+      }
+    }
+
+    function generateArenaQuestion() {
+      isArenaAnswered = false;
+      clearInterval(arenaTimerInterval);
+
+      document.getElementById('btn-arena-next').classList.add('hidden');
+      document.getElementById('arena-feedback').innerHTML = '';
+
+      if (activeVocab.length === 0) return;
+
+      // Pick target
+      currentArenaQuestion = activeVocab[Math.floor(Math.random() * activeVocab.length)];
+
+      // Pick 3 distractors
+      const distractors = VOCAB_DATA.filter(i => i.id !== currentArenaQuestion.id);
+      for (let i = distractors.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [distractors[i], distractors[j]] = [distractors[j], distractors[i]];
+      }
+
+      const options = [currentArenaQuestion, distractors[0], distractors[1], distractors[2]];
+      for (let i = options.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [options[i], options[j]] = [options[j], options[i]];
+      }
+
+      document.getElementById('arena-vi-prompt').innerText = currentArenaQuestion.vi;
+
+      const container = document.getElementById('arena-options-grid');
+      container.innerHTML = '';
+
+      options.forEach(opt => {
+        const btn = document.createElement('button');
+        btn.className = 'arena-opt-btn btn-3d w-full h-13 bg-slate-800 border-2 border-slate-700 text-emerald-300 font-bold px-4 rounded-2xl text-base flex items-center justify-between active:scale-98';
+        btn.onclick = () => selectArenaOption(opt, btn);
+        btn.innerHTML = `<span class="font-display font-semibold">${opt.en}</span> <i class="fa-solid fa-volume-high text-xs text-slate-500" onclick="event.stopPropagation(); speakEnglishText('${opt.en}');"></i>`;
+        container.appendChild(btn);
+      });
+
+      // Start 12s countdown timer
+      arenaTimeLeft = 12;
+      document.getElementById('arena-timer').innerText = `${arenaTimeLeft}s`;
+      document.getElementById('timer-bar').style.width = '100%';
+
+      const startTime = Date.now();
+      const totalDuration = 12000;
+
+      arenaTimerInterval = setInterval(() => {
+        const elapsed = Date.now() - startTime;
+        const remaining = Math.max(0, totalDuration - elapsed);
+        arenaTimeLeft = Math.ceil(remaining / 1000);
+        document.getElementById('arena-timer').innerText = `${arenaTimeLeft}s`;
+        document.getElementById('timer-bar').style.width = `${(remaining / totalDuration) * 100}%`;
+
+        if (remaining <= 0) {
+          clearInterval(arenaTimerInterval);
+          handleArenaTimeout();
+        }
+      }, 100);
+    }
+
+    function selectArenaOption(selectedOpt, btnElement) {
+      if (isArenaAnswered) return;
+      isArenaAnswered = true;
+      clearInterval(arenaTimerInterval);
+
+      const isCorrect = (selectedOpt.id === currentArenaQuestion.id);
+      const feedbackEl = document.getElementById('arena-feedback');
+
+      speakEnglishText(selectedOpt.en);
+
+      document.querySelectorAll('.arena-opt-btn').forEach(btn => {
+        btn.disabled = true;
+        const text = btn.querySelector('span').innerText;
+        if (text === currentArenaQuestion.en) {
+          btn.className = 'arena-opt-btn w-full h-13 bg-emerald-900/90 border-2 border-emerald-500 text-white font-bold px-4 rounded-2xl text-base flex items-center justify-between shadow-lg';
+        }
+      });
+
+      if (isCorrect) {
+        btnElement.className = 'arena-opt-btn w-full h-13 bg-emerald-600 border-2 border-emerald-400 text-white font-bold px-4 rounded-2xl text-base flex items-center justify-between shadow-lg animate-bounce';
+        
+        arenaStreak++;
+        if (arenaStreak > arenaMaxStreak) arenaMaxStreak = arenaStreak;
+
+        // Calculate score with combo multiplier + time bonus
+        const baseScore = 100;
+        const comboBonus = arenaStreak * 25;
+        const timeBonus = arenaTimeLeft * 10;
+        const earned = baseScore + comboBonus + timeBonus;
+
+        arenaScore += earned;
+
+        if (arenaStreak >= 3) {
+          playAudio('streak');
+          feedbackEl.innerHTML = `<span class="text-amber-400 font-black"><i class="fa-solid fa-fire"></i> CHUỖI ${arenaStreak}x COMBO! (+${earned} ĐIỂM)</span>`;
+        } else {
+          playAudio('correct');
+          feedbackEl.innerHTML = `<span class="text-emerald-400"><i class="fa-solid fa-circle-check"></i> CHÍNH XÁC! (+${earned} ĐIỂM)</span>`;
+        }
+      } else {
+        btnElement.className = 'arena-opt-btn w-full h-13 bg-rose-900/90 border-2 border-rose-500 text-rose-200 font-bold px-4 rounded-2xl text-base flex items-center justify-between shadow-lg';
+        playAudio('wrong');
+        arenaStreak = 0;
+        feedbackEl.innerHTML = `<span class="text-rose-400"><i class="fa-solid fa-circle-xmark"></i> SAI RỒI! ĐÁP ÁN: <b>${currentArenaQuestion.en}</b></span>`;
+      }
+
+      updateArenaHUD();
+
+      if (arenaQuestionIndex < arenaTotalQuestions - 1) {
+        document.getElementById('btn-arena-next').innerText = 'Câu Tiếp Theo';
+        document.getElementById('btn-arena-next').classList.remove('hidden');
+      } else {
+        finishArenaRound();
+      }
+    }
+
+    function handleArenaTimeout() {
+      if (isArenaAnswered) return;
+      isArenaAnswered = true;
+
+      playAudio('wrong');
+      arenaStreak = 0;
+      updateArenaHUD();
+
+      document.querySelectorAll('.arena-opt-btn').forEach(btn => {
+        btn.disabled = true;
+        const text = btn.querySelector('span').innerText;
+        if (text === currentArenaQuestion.en) {
+          btn.className = 'arena-opt-btn w-full h-13 bg-emerald-900/90 border-2 border-emerald-500 text-white font-bold px-4 rounded-2xl text-base flex items-center justify-between shadow-lg';
+        }
+      });
+
+      document.getElementById('arena-feedback').innerHTML = `<span class="text-rose-400"><i class="fa-solid fa-clock"></i> HẾT GIỜ! ĐÁP ÁN: <b>${currentArenaQuestion.en}</b></span>`;
+
+      if (arenaQuestionIndex < arenaTotalQuestions - 1) {
+        document.getElementById('btn-arena-next').innerText = 'Câu Tiếp Theo';
+        document.getElementById('btn-arena-next').classList.remove('hidden');
+      } else {
+        finishArenaRound();
+      }
+    }
+
+    function nextArenaQuestion() {
+      if (arenaQuestionIndex < arenaTotalQuestions - 1) {
+        arenaQuestionIndex++;
+        updateArenaHUD();
+        generateArenaQuestion();
+      }
+    }
+
+    function finishArenaRound() {
+      playAudio('fanfare');
+
+      // Auto-submit score record to cloud & local storage
+      const record = {
+        name: playerProfile.name || 'Học sinh ẩn danh',
+        className: playerProfile.className || 'Tự do',
+        score: arenaScore,
+        maxStreak: arenaMaxStreak,
+        date: new Date().toLocaleDateString('vi-VN')
+      };
+
+      if (window.saveScoreToCloud) {
+        window.saveScoreToCloud(record);
+      }
+
+      document.getElementById('arena-feedback').innerHTML = `
+        <div class="bg-gradient-to-r from-emerald-950 via-slate-900 to-amber-950 border border-amber-500/80 p-4 rounded-2xl text-center space-y-2 w-full my-2">
+          <i class="fa-solid fa-trophy text-amber-400 text-3xl"></i>
+          <h3 class="font-display text-lg font-black text-white">HOÀN THÀNH VÒNG ĐUA TOP!</h3>
+          <p class="text-xs text-amber-300">Tổng điểm: <b class="text-white text-base">${arenaScore}</b> • Chuỗi cao nhất: <b class="text-emerald-400 text-base">${arenaMaxStreak}x</b></p>
+          <p class="text-[11px] text-slate-400">Đã cập nhật vị trí của bạn trên Bảng Xếp Hạng Online!</p>
+        </div>
+      `;
+
+      const btn = document.getElementById('btn-arena-next');
+      btn.innerHTML = `<i class="fa-solid fa-rotate-right"></i> <span>Chơi Lượt Mới</span>`;
+      btn.onclick = () => {
+        btn.onclick = nextArenaQuestion;
+        initArenaRound();
+      };
+      btn.classList.remove('hidden');
+    }
+
+    /* ==========================================================================
+       VIEW 2: LEADERBOARD ONLINE LOGIC
+       ========================================================================== */
+    function loadLocalLeaderboard() {
+      try {
+        const saved = localStorage.getItem('vocab_arena_leaderboard');
+        if (saved) {
+          leaderboardData = JSON.parse(saved);
+        } else {
+          // Mock initial leaderboard data if empty
+          leaderboardData = [
+            { name: "Nguyễn Minh Trí", className: "Lớp 6A1", score: 1850, maxStreak: 9, date: "Hôm nay" },
+            { name: "Lê Bảo Ngọc", className: "Lớp 6A2", score: 1620, maxStreak: 7, date: "Hôm nay" },
+            { name: "Trần Đăng Khoa", className: "Lớp 6A1", score: 1400, maxStreak: 6, date: "Hôm nay" }
+          ];
+        }
+      } catch(e) { console.warn(e); }
+    }
+
+    window.updateLeaderboardData = function(newScores) {
+      if (Array.isArray(newScores) && newScores.length > 0) {
+        leaderboardData = newScores;
+        leaderboardData.sort((a,b) => b.score - a.score);
+        if (currentMode === 'leaderboard') renderLeaderboardUI();
+      }
+    };
+
+    function renderLeaderboardUI() {
+      const searchTerm = document.getElementById('lb-search').value.toLowerCase().trim();
+      const filtered = leaderboardData.filter(item => 
+        (item.name && item.name.toLowerCase().includes(searchTerm)) || 
+        (item.className && item.className.toLowerCase().includes(searchTerm))
+      );
+
+      const container = document.getElementById('leaderboard-list');
+      container.innerHTML = '';
+
+      if (filtered.length === 0) {
+        container.innerHTML = `<div class="p-8 text-center text-xs text-slate-500">Chưa có kết quả xếp hạng. Hãy chơi vòng Đua Top để ghi danh!</div>`;
+        return;
+      }
+
+      filtered.forEach((item, index) => {
+        const rank = index + 1;
+        let rankBadge = `<span class="w-7 h-7 rounded-xl bg-slate-800 text-slate-400 font-bold flex items-center justify-center text-xs">#${rank}</span>`;
+
+        if (rank === 1) rankBadge = `<div class="w-8 h-8 rounded-2xl bg-amber-500 text-slate-950 font-black flex items-center justify-center text-sm shadow-md shadow-amber-500/30">🥇</div>`;
+        if (rank === 2) rankBadge = `<div class="w-8 h-8 rounded-2xl bg-slate-300 text-slate-950 font-black flex items-center justify-center text-sm shadow-md">🥈</div>`;
+        if (rank === 3) rankBadge = `<div class="w-8 h-8 rounded-2xl bg-amber-700 text-amber-100 font-black flex items-center justify-center text-sm shadow-md">🥉</div>`;
+
+        const row = document.createElement('div');
+        row.className = `bg-slate-800/90 border border-slate-700/80 p-3 rounded-2xl flex items-center justify-between space-x-3 transition ${rank <= 3 ? 'border-amber-500/40' : ''}`;
+
+        row.innerHTML = `
+          <div class="flex items-center space-x-3">
+            ${rankBadge}
+            <div>
+              <div class="flex items-center space-x-2">
+                <span class="font-bold text-sm text-white">${item.name}</span>
+                <span class="text-[10px] bg-slate-900 text-emerald-400 px-2 py-0.5 rounded-full font-bold border border-slate-700">${item.className || 'Tự do'}</span>
+              </div>
+              <p class="text-[11px] text-slate-400">Chuỗi cao nhất: <b class="text-amber-400">${item.maxStreak || 0}x Combo</b></p>
+            </div>
+          </div>
+
+          <div class="text-right">
+            <span class="font-display font-black text-base text-cyan-400 block leading-none">${item.score}</span>
+            <span class="text-[9px] text-slate-500 uppercase font-bold">Điểm</span>
+          </div>
+        `;
+        container.appendChild(row);
+      });
+    }
+
+    /* ==========================================================================
+       VIEW 3: FLASHCARD LOGIC
+       ========================================================================== */
+    function renderFc() {
+      if (activeVocab.length === 0) return;
+      const item = activeVocab[fcIndex];
+
+      const innerCard = document.getElementById('flashcard-inner');
+      innerCard.classList.remove('rotate-y-180');
+      isFcFlipped = false;
+
+      document.getElementById('fc-vietnamese').innerText = item.vi;
+      document.getElementById('fc-english').innerText = item.en;
+      document.getElementById('fc-example-en').innerText = item.exEn;
+      document.getElementById('fc-example-vi').innerText = item.exVi;
+
+      document.getElementById('fc-current-idx').innerText = fcIndex + 1;
+      document.getElementById('fc-total-count').innerText = activeVocab.length;
+      document.getElementById('fc-progress-bar').style.width = `${((fcIndex + 1) / activeVocab.length) * 100}%`;
+    }
+
+    function flipCard() {
+      const innerCard = document.getElementById('flashcard-inner');
+      isFcFlipped = !isFcFlipped;
+      playAudio('streak');
+
+      if (isFcFlipped) {
+        innerCard.classList.add('rotate-y-180');
+        speakCurrentFc();
+      } else {
+        innerCard.classList.remove('rotate-y-180');
+      }
+    }
+
+    function speakCurrentFc() {
+      const item = activeVocab[fcIndex];
+      if (item) speakEnglishText(item.en);
+    }
+
+    function nextFc() {
+      fcIndex = (fcIndex < activeVocab.length - 1) ? fcIndex + 1 : 0;
+      renderFc();
+    }
+
+    function prevFc() {
+      fcIndex = (fcIndex > 0) ? fcIndex - 1 : activeVocab.length - 1;
+      renderFc();
+    }
+
+    /* ==========================================================================
+       VIEW 4: DICTIONARY LIST LOGIC
+       ========================================================================== */
+    function renderVocabListUI() {
+      const searchTerm = document.getElementById('list-search').value.toLowerCase().trim();
+      const filtered = activeVocab.filter(item => 
+        item.vi.toLowerCase().includes(searchTerm) || 
+        item.en.toLowerCase().includes(searchTerm)
+      );
+
+      const container = document.getElementById('dict-list-container');
+      container.innerHTML = '';
+
+      filtered.forEach((item) => {
+        const card = document.createElement('div');
+        card.className = 'bg-slate-800 border border-slate-700 p-3 rounded-2xl flex items-center justify-between space-x-3';
+        card.innerHTML = `
+          <div class="space-y-0.5">
+            <div class="flex items-center space-x-2">
+              <span class="font-display font-bold text-sm text-emerald-400">${item.en}</span>
+              <span class="text-xs text-slate-300">(${item.vi})</span>
+            </div>
+            <p class="text-[11px] text-slate-400">${item.exEn}</p>
+          </div>
+          <button onclick="speakEnglishText('${item.en.replace(/'/g, "\\'")}')" class="w-8 h-8 rounded-xl bg-slate-900 text-slate-300 active:text-emerald-400 flex items-center justify-center">
+            <i class="fa-solid fa-volume-high text-xs"></i>
+          </button>
+        `;
+        container.appendChild(card);
+      });
+    }
+  </script>
+</body>
+</html>
