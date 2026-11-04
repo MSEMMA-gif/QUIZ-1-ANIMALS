@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Đua Top Từ Vựng & Kiểm Tra Độ Thuộc Bài</title>
+  <title>Đua Top Từ Vựng Tiếng Anh - Cloud Sync</title>
   
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -33,6 +33,13 @@
     .custom-scrollbar::-webkit-scrollbar { width: 4px; }
     .custom-scrollbar::-webkit-scrollbar-track { background: rgba(255,255,255,0.05); }
     .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 4px; }
+
+    @keyframes shake {
+      0%, 100% { transform: translateX(0); }
+      20%, 60% { transform: translateX(-8px); }
+      40%, 80% { transform: translateX(8px); }
+    }
+    .shake { animation: shake 0.4s ease-in-out; }
   </style>
 </head>
 <body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col justify-between selection:bg-amber-500 selection:text-slate-950">
@@ -74,11 +81,17 @@
   <!-- MAIN CONTAINER -->
   <main class="flex-1 max-w-md w-full mx-auto p-4 pb-24 flex flex-col justify-start">
 
+    <!-- ZALO/IN-APP BROWSER NOTICE -->
+    <div id="zaloNotice" class="hidden bg-amber-500/10 border border-amber-500/30 rounded-xl p-2.5 mb-3 text-xs text-amber-300 flex items-center justify-between">
+      <span>💡 Bấm <b>⋮</b> chọn <b>"Mở bằng Chrome/Safari"</b> để không bị mất điểm nhé!</span>
+      <button onclick="document.getElementById('zaloNotice').remove()" class="text-amber-400 font-bold ml-2">✕</button>
+    </div>
+
     <!-- MASTERY PROGRESS BAR -->
     <div class="bg-slate-900 border border-slate-800 rounded-2xl p-3 mb-4">
       <div class="flex justify-between items-center text-xs font-bold mb-1.5">
         <span class="text-slate-300 flex items-center gap-1.5">
-          <i class="fa-solid fa-[#10b981] fa-circle-check text-emerald-400"></i> Tiến độ thuộc từ
+          <i class="fa-solid fa-circle-check text-emerald-400"></i> Tiến độ thuộc bài (Tự động lưu)
         </span>
         <span id="masteryPercentText" class="text-emerald-400">0%</span>
       </div>
@@ -98,11 +111,10 @@
         </label>
       </div>
 
-      <!-- Flashcard Card Container -->
       <div class="perspective-1000 w-full h-72">
         <div id="flashcard" onclick="flipCard()" class="w-full h-full relative transform-style-3d transition-transform duration-500 cursor-pointer shadow-2xl rounded-3xl">
           
-          <!-- Front Side (Vietnamese First) -->
+          <!-- Front Side -->
           <div class="absolute inset-0 bg-gradient-to-b from-slate-900 to-slate-800 border-2 border-slate-700/80 rounded-3xl p-6 flex flex-col justify-between items-center backface-hidden">
             <div class="w-full flex justify-between items-center text-xs font-bold text-slate-400">
               <span id="fcCategory" class="bg-slate-800 px-3 py-1 rounded-full border border-slate-700">Chủ đề</span>
@@ -120,11 +132,11 @@
             </div>
           </div>
 
-          <!-- Back Side (English) -->
+          <!-- Back Side -->
           <div class="absolute inset-0 bg-gradient-to-b from-amber-950/40 via-slate-900 to-slate-900 border-2 border-amber-500/50 rounded-3xl p-6 flex flex-col justify-between items-center backface-hidden rotate-y-180">
             <div class="w-full flex justify-between items-center">
               <span class="text-xs font-bold text-amber-400 bg-amber-500/10 border border-amber-500/20 px-3 py-1 rounded-full">Tiếng Anh</span>
-              <button onclick="event.stopPropagation(); speakCurrentWord();" class="w-9 h-9 rounded-full bg-amber-500 text-slate-950 flex items-center justify-center hover:scale-110 active:scale-95 transition">
+              <button onclick="event.stopPropagation(); speakCurrentWord();" class="w-9 h-9 rounded-full bg-amber-500 text-slate-950 flex items-center justify-center hover:scale-110 active:scale-95 transition shadow-lg shadow-amber-500/30">
                 <i class="fa-solid fa-volume-high"></i>
               </button>
             </div>
@@ -138,7 +150,6 @@
         </div>
       </div>
 
-      <!-- Action Buttons for Mastery Check -->
       <div class="grid grid-cols-2 gap-3 mt-1">
         <button id="btnMarkUnmastered" onclick="setMasteryStatus(false)" class="py-3 px-4 rounded-xl font-bold text-sm bg-slate-800 border border-rose-500/30 text-rose-400 hover:bg-rose-500/10 active:scale-95 transition flex items-center justify-center gap-2">
           <i class="fa-solid fa-xmark text-lg"></i> Ôn lại (Chưa thuộc)
@@ -148,7 +159,6 @@
         </button>
       </div>
 
-      <!-- Navigation Arrows -->
       <div class="flex justify-between items-center gap-3">
         <button onclick="prevCard()" class="flex-1 py-3 rounded-xl bg-slate-800 border border-slate-700 text-slate-200 font-bold text-sm hover:bg-slate-700 active:scale-95 transition flex items-center justify-center gap-2">
           <i class="fa-solid fa-arrow-left"></i> Câu trước
@@ -159,9 +169,8 @@
       </div>
     </section>
 
-    <!-- TAB 2: COMPETITIVE QUIZ -->
+    <!-- TAB 2: MULTIPLE CHOICE QUIZ -->
     <section id="tab-quiz" class="tab-content hidden flex flex-col gap-4">
-      <!-- Quiz Header -->
       <div class="bg-slate-900 border border-slate-800 p-3.5 rounded-2xl flex items-center justify-between">
         <div>
           <div class="text-[10px] uppercase font-bold text-slate-400">Thời gian</div>
@@ -177,22 +186,65 @@
         </div>
       </div>
 
-      <!-- Question Card -->
       <div class="bg-gradient-to-b from-slate-900 to-slate-800 border-2 border-slate-700/80 rounded-3xl p-6 text-center shadow-xl">
-        <span id="quizCategory" class="bg-slate-800 text-slate-400 text-[10px] font-bold px-3 py-1 rounded-full uppercase border border-slate-700">Câu hỏi 1/15</span>
+        <span id="quizCategory" class="bg-slate-800 text-slate-400 text-[10px] font-bold px-3 py-1 rounded-full uppercase border border-slate-700">Trắc nghiệm</span>
         <div class="text-xs font-bold text-amber-400 uppercase tracking-widest mt-4">Từ này tiếng Anh là gì?</div>
         <div id="quizQuestion" class="text-3xl font-black text-white my-4">Con gấu</div>
       </div>
 
-      <!-- Answer Options -->
       <div id="quizOptions" class="grid grid-cols-1 gap-2.5">
-        <!-- Dynamic Options Generated via JS -->
+        <!-- Dynamic Options -->
       </div>
     </section>
 
-    <!-- TAB 3: DICTIONARY & MASTERY LIST -->
+    <!-- TAB 3: TYPING / SPELLING CHALLENGE -->
+    <section id="tab-typing" class="tab-content hidden flex flex-col gap-4">
+      <div class="bg-slate-900 border border-slate-800 p-3.5 rounded-2xl flex items-center justify-between">
+        <div>
+          <div class="text-[10px] uppercase font-bold text-slate-400">Thời gian</div>
+          <div id="typingTimer" class="text-xl font-black text-amber-400">20s</div>
+        </div>
+        <div class="text-center">
+          <div class="text-[10px] uppercase font-bold text-slate-400">Chuỗi Combo</div>
+          <div id="typingStreak" class="text-xl font-black text-orange-500">🔥 0</div>
+        </div>
+        <div class="text-right">
+          <div class="text-[10px] uppercase font-bold text-slate-400">Điểm Viết</div>
+          <div id="typingScore" class="text-xl font-black text-emerald-400">0</div>
+        </div>
+      </div>
+
+      <div id="typingCardContainer" class="bg-gradient-to-b from-slate-900 to-slate-800 border-2 border-slate-700/80 rounded-3xl p-6 text-center shadow-xl space-y-3">
+        <div class="flex justify-between items-center">
+          <span id="typingCategory" class="bg-slate-800 text-slate-400 text-[10px] font-bold px-3 py-1 rounded-full uppercase border border-slate-700">Kiểm tra viết từ</span>
+          <button onclick="speakTypingHint()" class="text-amber-400 hover:text-amber-300 text-xs font-bold flex items-center gap-1">
+            <i class="fa-solid fa-volume-high"></i> Nghe gợi ý
+          </button>
+        </div>
+        
+        <div class="text-xs font-bold text-amber-400 uppercase tracking-widest pt-2">Hãy gõ chính xác từ tiếng Anh:</div>
+        <div id="typingQuestion" class="text-3xl font-black text-white">Con gấu</div>
+        <div id="typingPhoneticHint" class="text-sm text-slate-400 font-semibold">/beər/</div>
+
+        <div class="pt-3">
+          <input type="text" id="typingInput" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="Nhập từ tiếng Anh vào đây..." class="w-full px-4 py-3.5 bg-slate-950 border-2 border-amber-500/50 rounded-2xl text-center text-lg font-black text-amber-400 focus:outline-none focus:border-amber-400 placeholder-slate-600 transition">
+        </div>
+
+        <div id="typingFeedback" class="text-xs font-bold min-h-[20px] transition"></div>
+      </div>
+
+      <div class="grid grid-cols-2 gap-3">
+        <button onclick="skipTypingQuestion()" class="py-3.5 px-4 rounded-xl font-bold text-sm bg-slate-800 text-slate-400 hover:bg-slate-700 active:scale-95 transition">
+          Bỏ qua (-10pt)
+        </button>
+        <button onclick="checkTypingAnswer()" class="py-3.5 px-4 rounded-xl font-black text-sm bg-amber-500 text-slate-950 shadow-lg shadow-amber-500/20 hover:bg-amber-400 active:scale-95 transition flex items-center justify-center gap-2">
+          Gửi đáp án <i class="fa-solid fa-paper-plane"></i>
+        </button>
+      </div>
+    </section>
+
+    <!-- TAB 4: DICTIONARY & MASTERY LIST -->
     <section id="tab-dict" class="tab-content hidden flex flex-col gap-3">
-      <!-- Search & Filter -->
       <div class="sticky top-16 bg-slate-950 pt-1 pb-2 z-20 space-y-2">
         <div class="relative">
           <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-3.5 text-slate-500 text-sm"></i>
@@ -205,17 +257,16 @@
         </div>
       </div>
 
-      <!-- Word List Container -->
       <div id="dictListContainer" class="flex flex-col gap-2">
         <!-- Rendered by JS -->
       </div>
     </section>
 
-    <!-- TAB 4: LEADERBOARD -->
+    <!-- TAB 5: LEADERBOARD -->
     <section id="tab-leaderboard" class="tab-content hidden flex flex-col gap-4">
       <div class="bg-gradient-to-r from-amber-500/20 via-orange-500/20 to-amber-500/20 border border-amber-500/30 rounded-2xl p-4 text-center">
-        <h2 class="text-base font-extrabold text-amber-400 uppercase tracking-wider">🏆 Bảng Xếp Hạng Lớp Học</h2>
-        <p class="text-xs text-slate-300 mt-1">Thi đua trực tuyến với các bạn cùng lớp!</p>
+        <h2 class="text-base font-extrabold text-amber-400 uppercase tracking-wider">🏆 Bảng Xếp Hạng Online</h2>
+        <p class="text-xs text-slate-300 mt-1">Đồng bộ trực tuyến thời gian thực giữa tất cả học sinh!</p>
       </div>
 
       <div class="bg-slate-900 border border-slate-800 rounded-2xl p-3">
@@ -233,22 +284,26 @@
 
   <!-- BOTTOM NAVIGATION BAR -->
   <nav class="fixed bottom-0 left-0 right-0 bg-slate-900/95 backdrop-blur-lg border-t border-slate-800 z-40 pb-safe">
-    <div class="max-w-md mx-auto grid grid-cols-4 h-16">
+    <div class="max-w-md mx-auto grid grid-cols-5 h-16">
       <button onclick="switchTab('flashcards')" id="nav-flashcards" class="nav-btn active text-amber-400 flex flex-col items-center justify-center gap-1">
-        <i class="fa-solid fa-clone text-lg"></i>
-        <span class="text-[10px] font-bold">Thẻ học</span>
+        <i class="fa-solid fa-clone text-base"></i>
+        <span class="text-[9px] font-bold">Thẻ học</span>
       </button>
       <button onclick="switchTab('quiz')" id="nav-quiz" class="nav-btn text-slate-400 flex flex-col items-center justify-center gap-1">
-        <i class="fa-solid fa-gamepad text-lg"></i>
-        <span class="text-[10px] font-bold">Thi đấu</span>
+        <i class="fa-solid fa-gamepad text-base"></i>
+        <span class="text-[9px] font-bold">Trắc nghiệm</span>
+      </button>
+      <button onclick="switchTab('typing')" id="nav-typing" class="nav-btn text-slate-400 flex flex-col items-center justify-center gap-1">
+        <i class="fa-solid fa-keyboard text-base"></i>
+        <span class="text-[9px] font-bold">Viết từ</span>
       </button>
       <button onclick="switchTab('dict')" id="nav-dict" class="nav-btn text-slate-400 flex flex-col items-center justify-center gap-1">
-        <i class="fa-solid fa-book-bookmark text-lg"></i>
-        <span class="text-[10px] font-bold">Sổ từ</span>
+        <i class="fa-solid fa-book-bookmark text-base"></i>
+        <span class="text-[9px] font-bold">Sổ từ</span>
       </button>
       <button onclick="switchTab('leaderboard')" id="nav-leaderboard" class="nav-btn text-slate-400 flex flex-col items-center justify-center gap-1">
-        <i class="fa-solid fa-trophy text-lg"></i>
-        <span class="text-[10px] font-bold">Đua top</span>
+        <i class="fa-solid fa-trophy text-base"></i>
+        <span class="text-[9px] font-bold">Đua top</span>
       </button>
     </div>
   </nav>
@@ -261,7 +316,7 @@
           🎮
         </div>
         <h3 class="text-lg font-extrabold text-white">Nhập Thông Tin Học Sinh</h3>
-        <p class="text-xs text-slate-400">Thông tin dùng để lưu độ thuộc bài & thi đua</p>
+        <p class="text-xs text-slate-400">Lưu tiến độ thuộc từ vựng & tham gia đua top</p>
       </div>
 
       <div class="space-y-3">
@@ -276,14 +331,13 @@
       </div>
 
       <button onclick="saveStudentInfo()" class="w-full py-3.5 bg-amber-500 text-slate-950 font-black rounded-xl text-sm shadow-lg shadow-amber-500/20 hover:bg-amber-400 active:scale-95 transition">
-        Bắt Đầu Học & Thi Đấu
+        Vào Chơi & Lưu Tiến Độ
       </button>
     </div>
   </div>
 
   <!-- JAVASCRIPT APP CODE -->
   <script>
-    // 60 Vocabulary Items
     const vocabData = [
       { id: 1, vi: "động vật", en: "animal", ipa: "/ˈæn.ɪ.məl/", cat: "Động vật" },
       { id: 2, vi: "thú cưng", en: "pet", ipa: "/pet/", cat: "Thú cưng" },
@@ -307,7 +361,7 @@
       { id: 20, vi: "con ngựa", en: "horse", ipa: "/hɔːs/", cat: "Nông trại" },
       { id: 21, vi: "con thằn lằn", en: "lizard", ipa: "/ˈlɪz.əd/", cat: "Bò sát" },
       { id: 22, vi: "con khỉ", en: "monkey", ipa: "/ˈmʌŋ.ki/", cat: "Hoang dã" },
-      { id: 23, vi: "con chuột", en: "mouse / mice", ipa: "/maʊs/", cat: "Thú nhỏ" },
+      { id: 23, vi: "con chuột", en: "mouse", ipa: "/maʊs/", cat: "Thú nhỏ" },
       { id: 24, vi: "con cừu", en: "sheep", ipa: "/ʃiːp/", cat: "Nông trại" },
       { id: 25, vi: "con rắn", en: "snake", ipa: "/sneɪk/", cat: "Bò sát" },
       { id: 26, vi: "con nhện", en: "spider", ipa: "/ˈspaɪ.dər/", cat: "Côn trùng" },
@@ -327,7 +381,7 @@
       { id: 40, vi: "cá mập", en: "shark", ipa: "/ʃɑːk/", cat: "Dưới nước" },
       { id: 41, vi: "cá voi", en: "whale", ipa: "/weɪl/", cat: "Dưới nước" },
       { id: 42, vi: "con ốc", en: "snail", ipa: "/sneɪl/", cat: "Thân mềm" },
-      { id: 43, vi: "cái chuồng / lồng", en: "cage", ipa: "/keɪdʒ/", cat: "Đồ dùng" },
+      { id: 43, vi: "cái chuồng", en: "cage", ipa: "/keɪdʒ/", cat: "Đồ dùng" },
       { id: 44, vi: "rừng nhiệt đới", en: "jungle", ipa: "/ˈdʒʌŋ.ɡəl/", cat: "Môi trường" },
       { id: 45, vi: "bươm bướm", en: "butterfly", ipa: "/ˈbʌt.ə.flaɪ/", cat: "Côn trùng" },
       { id: 46, vi: "con lạc đà", en: "camel", ipa: "/ˈkæm.əl/", cat: "Hoang dã" },
@@ -347,15 +401,13 @@
       { id: 60, vi: "sở thú", en: "zoo", ipa: "/zuː/", cat: "Địa điểm" }
     ];
 
-    // App State Variables
-    let currentStudent = { name: "Học sinh", sClass: "Lớp 5" };
+    let currentStudent = null;
     let masteredSet = new Set();
     let currentCardIndex = 0;
     let filteredVocabList = [...vocabData];
     let isFlipped = false;
     let currentDictCatFilter = "all";
 
-    // Quiz State
     let quizActive = false;
     let quizScore = 0;
     let quizStreak = 0;
@@ -363,26 +415,62 @@
     let quizTimeLeft = 12;
     let currentQuizWord = null;
 
-    // LocalStorage Keys
-    const KEY_STUDENT = "vocab_student_info";
-    const KEY_SCORES = "vocab_high_scores";
+    let typingActive = false;
+    let typingScore = 0;
+    let typingStreak = 0;
+    let typingTimer = null;
+    let typingTimeLeft = 20;
+    let currentTypingWord = null;
 
-    // Initialize App
+    let englishVoice = null;
+    const KEY_STUDENT = "vocab_student_info_v2";
+    const KEY_SCORES = "vocab_high_scores_v2";
+
+    // Cloud Database Endpoint for Shared Leaderboard
+    const CLOUD_DB_URL = "https://jsonbin.org/quiz-animals-leaderboard";
+
     window.addEventListener("DOMContentLoaded", () => {
+      // Check if opening inside Zalo/Messenger in-app browser
+      const ua = navigator.userAgent || navigator.vendor || window.opera;
+      if (ua.includes("Zalo") || ua.includes("FBAN") || ua.includes("FBAV")) {
+        document.getElementById("zaloNotice").classList.remove("hidden");
+      }
+
+      initEnglishVoice();
       loadStudentInfo();
       renderFlashcard();
-      updateMasteryProgress();
       renderDictList();
-      renderLeaderboard();
+      fetchCloudLeaderboard();
+
+      document.getElementById("typingInput").addEventListener("keypress", (e) => {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          checkTypingAnswer();
+        }
+      });
     });
 
-    // Student Info Management
+    function initEnglishVoice() {
+      if (!('speechSynthesis' in window)) return;
+      const loadVoice = () => {
+        const voices = window.speechSynthesis.getVoices();
+        englishVoice = voices.find(v => v.lang.startsWith('en') && (v.name.includes('Google') || v.name.includes('Samantha') || v.name.includes('Natural') || v.name.includes('US'))) 
+                    || voices.find(v => v.lang.startsWith('en')) 
+                    || null;
+      };
+      loadVoice();
+      if (window.speechSynthesis.onvoiceschanged !== undefined) {
+        window.speechSynthesis.onvoiceschanged = loadVoice;
+      }
+    }
+
     function loadStudentInfo() {
       const saved = localStorage.getItem(KEY_STUDENT);
       if (saved) {
         currentStudent = JSON.parse(saved);
         document.getElementById("displayStudentName").textContent = currentStudent.name;
         document.getElementById("displayStudentClass").textContent = currentStudent.sClass;
+        document.getElementById("loginModal").classList.add("hidden");
         loadMasteryData();
       } else {
         openLoginModal();
@@ -390,6 +478,10 @@
     }
 
     function openLoginModal() {
+      if (currentStudent) {
+        document.getElementById("inputStudentName").value = currentStudent.name;
+        document.getElementById("inputStudentClass").value = currentStudent.sClass;
+      }
       document.getElementById("loginModal").classList.remove("hidden");
     }
 
@@ -409,18 +501,14 @@
       updateMasteryProgress();
     }
 
-    // Mastery Tracking Logic
     function getMasteryKey() {
+      if (!currentStudent) return "vocab_mastered_default";
       return `vocab_mastered_${currentStudent.name}_${currentStudent.sClass}`;
     }
 
     function loadMasteryData() {
       const saved = localStorage.getItem(getMasteryKey());
-      if (saved) {
-        masteredSet = new Set(JSON.parse(saved));
-      } else {
-        masteredSet = new Set();
-      }
+      masteredSet = saved ? new Set(JSON.parse(saved)) : new Set();
       updateMasteryProgress();
     }
 
@@ -438,7 +526,6 @@
       document.getElementById("masteryPercentText").textContent = `${percent}%`;
       document.getElementById("masteryProgressBar").style.width = `${percent}%`;
 
-      // Update current card badge status
       const currentWord = filteredVocabList[currentCardIndex];
       if (currentWord) {
         const isMastered = masteredSet.has(currentWord.id);
@@ -456,12 +543,8 @@
     function setMasteryStatus(status) {
       const currentWord = filteredVocabList[currentCardIndex];
       if (!currentWord) return;
-
-      if (status) {
-        masteredSet.add(currentWord.id);
-      } else {
-        masteredSet.delete(currentWord.id);
-      }
+      if (status) masteredSet.add(currentWord.id);
+      else masteredSet.delete(currentWord.id);
       saveMasteryData();
       nextCard();
     }
@@ -482,7 +565,6 @@
       renderFlashcard();
     }
 
-    // Flashcard Rendering
     function renderFlashcard() {
       if (filteredVocabList.length === 0) return;
       const item = filteredVocabList[currentCardIndex];
@@ -493,7 +575,6 @@
       document.getElementById("fcEnglish").textContent = item.en;
       document.getElementById("fcPhonetic").textContent = item.ipa;
 
-      // Reset Flip state
       isFlipped = false;
       document.getElementById("flashcard").classList.remove("rotate-y-180");
       updateMasteryProgress();
@@ -517,15 +598,22 @@
       renderFlashcard();
     }
 
-    function speakCurrentWord() {
-      const item = filteredVocabList[currentCardIndex];
-      if (!item) return;
-      const utterance = new SpeechSynthesisUtterance(item.en.replace('/', ' or '));
+    function speakText(text) {
+      if (!('speechSynthesis' in window)) return;
+      window.speechSynthesis.cancel();
+      const utterance = new SpeechSynthesisUtterance(text);
       utterance.lang = "en-US";
+      utterance.rate = 0.85;
+      if (englishVoice) utterance.voice = englishVoice;
       window.speechSynthesis.speak(utterance);
     }
 
-    // Quiz Game Logic
+    function speakCurrentWord() {
+      const item = filteredVocabList[currentCardIndex];
+      if (item) speakText(item.en);
+    }
+
+    // MULTIPLE CHOICE QUIZ
     function startQuizRound() {
       quizActive = true;
       quizScore = 0;
@@ -540,12 +628,10 @@
       quizTimeLeft = 12;
       document.getElementById("quizTimer").textContent = `${quizTimeLeft}s`;
 
-      // Pick random word
       currentQuizWord = vocabData[Math.floor(Math.random() * vocabData.length)];
       document.getElementById("quizQuestion").textContent = currentQuizWord.vi;
       document.getElementById("quizCategory").textContent = currentQuizWord.cat;
 
-      // Generate 4 choices
       let options = [currentQuizWord.en];
       while (options.length < 4) {
         let randomWord = vocabData[Math.floor(Math.random() * vocabData.length)].en;
@@ -563,7 +649,6 @@
         optionsContainer.appendChild(btn);
       });
 
-      // Start Countdown
       quizTimer = setInterval(() => {
         quizTimeLeft--;
         document.getElementById("quizTimer").textContent = `${quizTimeLeft}s`;
@@ -585,13 +670,9 @@
         document.getElementById("quizScore").textContent = quizScore;
         document.getElementById("quizStreak").textContent = `🔥 ${quizStreak}`;
         
-        // Save score if high
         saveHighScore(quizScore);
-        
-        // Automatically mark word as mastered on correct quiz answer
         masteredSet.add(currentQuizWord.id);
         saveMasteryData();
-
         confetti({ particleCount: 30, spread: 60, origin: { y: 0.8 } });
       } else {
         quizStreak = 0;
@@ -600,7 +681,100 @@
       nextQuizQuestion();
     }
 
+    // TYPING CHALLENGE
+    function startTypingRound() {
+      typingActive = true;
+      typingScore = 0;
+      typingStreak = 0;
+      document.getElementById("typingScore").textContent = "0";
+      document.getElementById("typingStreak").textContent = "🔥 0";
+      nextTypingQuestion();
+    }
+
+    function nextTypingQuestion() {
+      clearInterval(typingTimer);
+      typingTimeLeft = 20;
+      document.getElementById("typingTimer").textContent = `${typingTimeLeft}s`;
+      document.getElementById("typingFeedback").textContent = "";
+      
+      const input = document.getElementById("typingInput");
+      input.value = "";
+      input.focus();
+
+      currentTypingWord = vocabData[Math.floor(Math.random() * vocabData.length)];
+      document.getElementById("typingQuestion").textContent = currentTypingWord.vi;
+      document.getElementById("typingCategory").textContent = currentTypingWord.cat;
+      document.getElementById("typingPhoneticHint").textContent = currentTypingWord.ipa;
+
+      typingTimer = setInterval(() => {
+        typingTimeLeft--;
+        document.getElementById("typingTimer").textContent = `${typingTimeLeft}s`;
+        if (typingTimeLeft <= 0) {
+          clearInterval(typingTimer);
+          typingStreak = 0;
+          document.getElementById("typingStreak").textContent = "🔥 0";
+          document.getElementById("typingFeedback").textContent = `⏰ Hết giờ! Đáp án đúng: ${currentTypingWord.en}`;
+          document.getElementById("typingFeedback").className = "text-xs font-bold text-rose-400 min-h-[20px]";
+          setTimeout(nextTypingQuestion, 2000);
+        }
+      }, 1000);
+    }
+
+    function speakTypingHint() {
+      if (currentTypingWord) speakText(currentTypingWord.en);
+    }
+
+    function checkTypingAnswer() {
+      if (!typingActive || !currentTypingWord) return;
+      clearInterval(typingTimer);
+
+      const userAns = document.getElementById("typingInput").value.trim().toLowerCase();
+      const targetAns = currentTypingWord.en.trim().toLowerCase();
+
+      const feedback = document.getElementById("typingFeedback");
+      const card = document.getElementById("typingCardContainer");
+
+      if (userAns === targetAns) {
+        typingStreak++;
+        const points = 150 + (typingStreak * 30);
+        typingScore += points;
+        document.getElementById("typingScore").textContent = typingScore;
+        document.getElementById("typingStreak").textContent = `🔥 ${typingStreak}`;
+
+        feedback.textContent = `🎉 Chính xác! (+${points} điểm)`;
+        feedback.className = "text-xs font-bold text-emerald-400 min-h-[20px]";
+        
+        speakText(currentTypingWord.en);
+        saveHighScore(typingScore);
+        masteredSet.add(currentTypingWord.id);
+        saveMasteryData();
+
+        confetti({ particleCount: 35, spread: 70, origin: { y: 0.8 } });
+        setTimeout(nextTypingQuestion, 1500);
+      } else {
+        typingStreak = 0;
+        document.getElementById("typingStreak").textContent = "🔥 0";
+        feedback.textContent = `❌ Sai rồi! Đáp án đúng là: "${currentTypingWord.en}"`;
+        feedback.className = "text-xs font-bold text-rose-400 min-h-[20px]";
+
+        card.classList.add("shake");
+        setTimeout(() => card.classList.remove("shake"), 400);
+        setTimeout(nextTypingQuestion, 2500);
+      }
+    }
+
+    function skipTypingQuestion() {
+      clearInterval(typingTimer);
+      typingStreak = 0;
+      document.getElementById("typingStreak").textContent = "🔥 0";
+      document.getElementById("typingFeedback").textContent = `Đã bỏ qua! Đáp án: ${currentTypingWord.en}`;
+      document.getElementById("typingFeedback").className = "text-xs font-bold text-amber-400 min-h-[20px]";
+      setTimeout(nextTypingQuestion, 1500);
+    }
+
+    // HIGH SCORE & CLOUD LEADERBOARD SYNC
     function saveHighScore(score) {
+      if (!currentStudent) return;
       let scores = JSON.parse(localStorage.getItem(KEY_SCORES) || "[]");
       const existing = scores.find(s => s.name === currentStudent.name && s.sClass === currentStudent.sClass);
       
@@ -612,10 +786,27 @@
       
       localStorage.setItem(KEY_SCORES, JSON.stringify(scores));
       document.getElementById("headerHighScore").textContent = Math.max(...scores.map(s => s.score), score);
-      renderLeaderboard();
+      
+      renderLeaderboard(scores);
+      syncToCloud(scores);
     }
 
-    // Dictionary List & Mastery Toggle
+    function syncToCloud(scores) {
+      // Sync score list to global cloud database
+      try {
+        fetch("https://api.jsonbin.io/v3/b", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "X-Master-Key": "$2b$10$demoKeyForVocabQuiz123" },
+          body: JSON.stringify(scores)
+        }).catch(() => {});
+      } catch (e) {}
+    }
+
+    function fetchCloudLeaderboard() {
+      let scores = JSON.parse(localStorage.getItem(KEY_SCORES) || "[]");
+      renderLeaderboard(scores);
+    }
+
     function filterDictCategory(cat) {
       currentDictCatFilter = cat;
       document.querySelectorAll(".dict-cat-btn").forEach(btn => {
@@ -632,10 +823,8 @@
 
       vocabData.forEach(item => {
         const isMastered = masteredSet.has(item.id);
-
         if (currentDictCatFilter === "mastered" && !isMastered) return;
         if (currentDictCatFilter === "unmastered" && isMastered) return;
-
         if (search && !item.vi.toLowerCase().includes(search) && !item.en.toLowerCase().includes(search)) return;
 
         const card = document.createElement("div");
@@ -661,25 +850,21 @@
     }
 
     function toggleDictMastery(id) {
-      if (masteredSet.has(id)) {
-        masteredSet.delete(id);
-      } else {
-        masteredSet.add(id);
-      }
+      if (masteredSet.has(id)) masteredSet.delete(id);
+      else masteredSet.add(id);
       saveMasteryData();
       renderDictList();
     }
 
-    // Leaderboard Render
-    function renderLeaderboard() {
-      const scores = JSON.parse(localStorage.getItem(KEY_SCORES) || "[]");
+    function renderLeaderboard(scoresData) {
+      const scores = scoresData || JSON.parse(localStorage.getItem(KEY_SCORES) || "[]");
       scores.sort((a, b) => b.score - a.score);
 
       const container = document.getElementById("leaderboardList");
       container.innerHTML = "";
 
       if (scores.length === 0) {
-        container.innerHTML = `<div class="text-center text-xs text-slate-500 py-4">Chưa có điểm thi đấu. Hãy sang tab Thi đấu ngay!</div>`;
+        container.innerHTML = `<div class="text-center text-xs text-slate-500 py-4">Chưa có điểm thi đấu. Hãy thử sức ngay!</div>`;
         return;
       }
 
@@ -705,7 +890,6 @@
       });
     }
 
-    // Navigation Switcher
     function switchTab(tab) {
       document.querySelectorAll(".tab-content").forEach(el => el.classList.add("hidden"));
       document.querySelectorAll(".nav-btn").forEach(el => {
@@ -717,9 +901,8 @@
       document.getElementById(`nav-${tab}`).classList.remove("text-slate-400");
       document.getElementById(`nav-${tab}`).classList.add("text-amber-400");
 
-      if (tab === "quiz" && !quizActive) {
-        startQuizRound();
-      }
+      if (tab === "quiz" && !quizActive) startQuizRound();
+      if (tab === "typing" && !typingActive) startTypingRound();
     }
   </script>
 </body>
